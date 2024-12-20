@@ -4,7 +4,7 @@ import pandas as pd
 import datetime
 import numpy as np
 import time
-import millify
+from millify import millify
 
 st.set_page_config(layout = 'wide')
 
