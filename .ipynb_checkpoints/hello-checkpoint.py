@@ -4,6 +4,7 @@ import pandas as pd
 import datetime
 import numpy as np
 import time
+import millify
 
 st.set_page_config(layout = 'wide')
 
@@ -260,7 +261,7 @@ def backtesting():
         
     stats1.metric('# of Stocks in Portfolio- ', len(userportfolio))
     stats2.metric('Total Investment:         ', f"${millify(startingcash * len(userportfolio))}")
-    stats3.metric('Ending Balance:           ', f"${round(st.session_state.endingcash)}", delta = round(delta, 3)) 
+    stats3.metric('Ending Balance:           ', f"${millify(st.session_state.endingcash)}", delta = round(delta, 3)) 
 
     st.markdown(f'<p align="center">Aggregate Performance of Portfolio from: {str(start)[0:10]} :: {str(end)[0:10]}', unsafe_allow_html = True)
 
