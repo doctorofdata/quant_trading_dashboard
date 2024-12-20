@@ -1,5 +1,3 @@
-!pip install lxml
-
 # Import libraries
 import streamlit as st
 import pandas as pd
