@@ -1,11 +1,9 @@
 # Import libraries
 import streamlit as st
-from kaggle.api.kaggle_api_extended import KaggleApi
 import pandas as pd
 import datetime
 import numpy as np
 import time
-from millify import millify
 
 st.set_page_config(layout = 'wide')
 
