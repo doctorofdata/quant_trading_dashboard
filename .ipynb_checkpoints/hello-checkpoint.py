@@ -20,7 +20,7 @@ def load_snp_data():
 @st.cache_data
 def load_stock_prices():
 
-    return pd.read_csv('/Users/human/Documents/quant/snp500prices.csv')  
+    return pd.read_csv('snp500prices.csv')  
 
 # Use a function to define the landing page for the site
 def landing():
