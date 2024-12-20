@@ -5,8 +5,9 @@ import datetime
 import numpy as np
 import time
 from millify import millify
+import matplotlib.pyplot as plt
 
-st.set_page_config(layout = 'wide')
+st.set_page_config('Quantitative Trading Backtester Platform 📈', layout = 'wide',)
 
 # Load the data
 @st.cache_data
@@ -295,12 +296,71 @@ def backtesting():
                                               file_name = "quant_trading_backtest.csv",
                                               mime = "text/csv")
 
+# Function to perform drill down visuals page
+def visuals():
+
+    st.image('stocktrading.jpg', use_container_width = True)
+    st.markdown(f"# {list(page_names_to_funcs.keys())[4]}")
+
+    # Pull parameters from memory
+    start = pd.to_datetime(st.session_state.start)
+    end = pd.to_datetime(st.session_state.end)
+    userportfolio = st.session_state.portfolio
+    startingcash = st.session_state.startingcash
+    numshares = st.session_state.numshares
+    shortwindow = st.session_state.shortwindow
+    longwindow = st.session_state.longwindow
+    df = st.session_state.df
+    signals = st.session_state.signals
+    backtest = st.session_state.backtest
+
+    # signals- 
+    # -1 = buy
+    # 1 = sell
+    
+    # Select a stock
+    stock = st.selectbox('Choose a ticker for further examination..', [i for i in userportfolio])
+
+    # Visualize the features
+    plt.figure(figsize = (15, 4))
+
+    # Plot the averages
+    plt.plot(df[df['ticker'] == stock]['Date'], df[df['ticker'] == stock]['price'], color = 'dodgerblue', label = 'Price ($)', alpha = .5)
+    plt.plot(signals[signals['ticker'] == stock].index, signals[signals['ticker'] == stock]['short'], color = 'orange', label = 'Short Moving Average', linewidth = .5, alpha = .5)
+    plt.plot(signals[signals['ticker'] == stock].index, signals[signals['ticker'] == stock]['long'], color = 'magenta', label = 'Long Moving Average', linewidth = .5, alpha = .5)
+
+    # Plot the trade actions
+    buys = signals[(signals.ticker == stock) & (signals['positions'] == -1)]
+    sells = signals[(signals.ticker == stock) & (signals['positions'] == 1)]
+
+    plt.scatter(sells.index, sells['price'], marker = "v", s = 25, color = 'red', label = 'sell')
+    plt.scatter(buys.index, buys['price'], marker = "^", s = 25, color = 'green', label = 'buy')
+    
+    plt.title(f'Pricing and Trades Data for {stock}')
+    plt.xlabel('Date')
+    plt.ylabel('Price ($)')
+    plt.legend()
+    plt.grid(True)
+
+    st.pyplot(plt)
+
+    # Plot the returns
+    plt.figure(figsize = (15, 4))
+    plt.plot(backtest[backtest['ticker'] == stock].index, backtest[backtest['ticker'] == stock]['total'], color = 'purple', linewidth = .5)
+    plt.title(f'Aggregated Return in $ for {stock}')
+    plt.xlabel('Date')
+    plt.ylabel('Total Value ($)')
+    plt.legend()
+    plt.grid(True)
+
+    st.pyplot(plt)
+
 # Define the layout for all pages
 page_names_to_funcs = {"—": landing,
                        "Portfolio Selection": portfolio,
                        "Parameterization": parameters,
-                       "Backtesting": backtesting,}
-#                       "Visualizations": visuals}
+                       "Backtesting": backtesting,
+                       "Visualizations": visuals}
 
 demo_name = st.sidebar.selectbox("Choose a demo", page_names_to_funcs.keys())
 page_names_to_funcs[demo_name]()
