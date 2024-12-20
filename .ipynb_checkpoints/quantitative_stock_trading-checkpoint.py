@@ -21,6 +21,38 @@ def load_stock_prices():
 
     return pd.read_csv('snp500prices.csv')  
 
+# Function to write data which prevents reruns from occuring
+@st.cache_data
+def convert_df(df):
+
+    return df.to_csv().encode("utf-8")
+
+# Function to execute trades
+@st.cache_data
+def generate_signals(ticker):
+
+    # Get the data isolate
+    grp = st.session_state.df[st.session_state.df['ticker'] == ticker]
+        
+    # Calculate
+    grp['signal'] = 0.0
+
+    # Calculate sma
+    grp['short'] = grp['price'].rolling(window = st.session_state.shortwindow, min_periods = 1, center = False).mean()
+
+    # Calculate lma
+    grp['long'] = grp['price'].rolling(window = st.session_state.longwindow, min_periods = 1, center = False).mean()
+
+    # Create signals
+    grp['signal'][st.session_state.shortwindow:] = np.where(grp['short'][st.session_state.shortwindow:] > grp['long'][st.session_state.shortwindow:], 1.0, 0.0)
+
+    # Generate trading orders
+    grp['positions'] = grp['signal'].diff()
+
+    grp.index = pd.DatetimeIndex(grp['Date'])
+    
+    return grp
+        
 # Use a function to define the landing page for the site
 def landing():
     
@@ -165,41 +197,16 @@ def backtesting():
     userportfolio = st.session_state.portfolio
     startingcash = st.session_state.startingcash
     numshares = st.session_state.numshares
-    
-    df = st.session_state.df
-    df['Date'] = pd.to_datetime(df['Date'])
-
     shortwindow = st.session_state.shortwindow
     longwindow = st.session_state.longwindow
+    df = st.session_state.df
     
+    # Fix date type
+    df['Date'] = pd.to_datetime(df['Date'])
+
     # Init df to store aggregate
     backtest = pd.DataFrame()
     signals = pd.DataFrame()
-
-    @st.cache_data
-    def generate_signals(ticker):
-
-        # Get the data isolate
-        grp = df[df['ticker'] == ticker]
-        
-        # Calculate
-        grp['signal'] = 0.0
-
-        # Calculate sma
-        grp['short'] = grp['price'].rolling(window = shortwindow, min_periods = 1, center = False).mean()
-
-        # Calculate lma
-        grp['long'] = grp['price'].rolling(window = longwindow, min_periods = 1, center = False).mean()
-
-        # Create signals
-        grp['signal'][shortwindow:] = np.where(grp['short'][shortwindow:] > grp['long'][shortwindow:], 1.0, 0.0)
-
-        # Generate trading orders
-        grp['positions'] = grp['signal'].diff()
-
-        grp.index = pd.DatetimeIndex(grp['Date'])
-    
-        return grp
     
     # Button to store statefulness
     execute_backtesting = c0.button("Execute backtesting!", type = "primary", icon = '📈')
@@ -213,6 +220,10 @@ def backtesting():
 
         signals = signals.set_index('Date')
 
+        if 'signals' not in st.session_state:
+
+            st.session_state.signals = signals
+            
         # Iterate the trades to calculate earnings
         for nm, grp in signals.groupby('ticker'):
 
@@ -240,39 +251,55 @@ def backtesting():
     
             backtest = pd.concat([backtest, portfolio])
 
-            if 'backtest' not in st.session_state:
+        if 'backtest' not in st.session_state:
 
-                st.session_state['backtest'] = backtest
-
-    c0.info(f'Backtesting is complete!')
+            st.session_state['backtest'] = backtest
         
-    # Compile the performance from all stocks
-    performance = backtest.groupby(backtest.index).agg({'holdings': 'sum',
-                                                            'cash': 'sum',
-                                                            'total': 'sum'})
-    st.session_state.performance = performance
-    st.session_state.endingcash = performance['total'].iloc[-1]
-    
-    # Compile the performance result
-    stats1, stats2, stats3 = c1.columns(3)
+        # Compile the performance from all stocks
+        performance = backtest.groupby(backtest.index).agg({'holdings': 'sum',
+                                                                'cash': 'sum',
+                                                                'total': 'sum'})
 
-    # Compute the returns
-    delta = st.session_state.endingcash / (startingcash * len(userportfolio))
-        
-    stats1.metric('# of Stocks in Portfolio- ', len(userportfolio))
-    stats2.metric('Total Investment:         ', f"${millify(startingcash * len(userportfolio))}")
-    stats3.metric('Ending Balance:           ', f"${millify(st.session_state.endingcash)}", delta = round(delta, 3)) 
+        if 'performance' not in st.session_state: 
+                
+            st.session_state.performance = performance
+            st.session_state.endingcash = performance['total'].iloc[-1]
 
-    st.markdown(f'<p align="center">Aggregate Performance of Portfolio from: {str(start)[0:10]} :: {str(end)[0:10]}', unsafe_allow_html = True)
+        # Compute the returns
+        st.session_state.delta = st.session_state.endingcash / (startingcash * len(userportfolio))
 
-    st.line_chart(performance, y = 'total', y_label = 'Total ($)', x_label = 'Month')
+        st.success(f'Backtesting is complete!')
+
+        # Compile the performance result
+        stats1, stats2, stats3 = c1.columns(3)
+       
+        stats1.metric('# of Stocks in Portfolio- ', len(userportfolio))
+        stats2.metric('Total Investment:         ', f"${millify(startingcash * len(userportfolio))}")
+        stats3.metric('Ending Balance:           ', f"${round(st.session_state.endingcash, 2)}", delta = round(st.session_state.delta, 3)) 
+
+        st.markdown(f'<p align="center">Aggregate Performance of Portfolio from: {str(start)[0:10]} :: {str(end)[0:10]}', unsafe_allow_html = True)
+
+        st.line_chart(performance, y = 'total', y_label = 'Total ($)', x_label = 'Month')
+
+        # Compute output files
+        pos = convert_df(st.session_state.signals)
+        rets = convert_df(st.session_state.performance)
+
+        download_signals = st.download_button(label = "Download the signals data as .csv",
+                                              data = pos,
+                                              file_name = "quant_trading_signals.csv",
+                                              mime = "text/csv")
+
+        download_returns = st.download_button(label = "Download the backtest data as .csv",
+                                              data = rets,
+                                              file_name = "quant_trading_backtest.csv",
+                                              mime = "text/csv")
 
 # Define the layout for all pages
 page_names_to_funcs = {"—": landing,
                        "Portfolio Selection": portfolio,
                        "Parameterization": parameters,
                        "Backtesting": backtesting,}
-#                       "Outcomes": results,}
 #                       "Visualizations": visuals}
 
 demo_name = st.sidebar.selectbox("Choose a demo", page_names_to_funcs.keys())
