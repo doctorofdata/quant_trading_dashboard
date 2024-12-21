@@ -219,7 +219,7 @@ def backtesting():
 
             signals = pd.concat([signals, generate_signals(nm)])
 
-        signals = signals.set_index('Date')
+        signals.set_index('Date', inplace = True)
 
         if 'signals' not in st.session_state:
 
